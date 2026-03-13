@@ -66,13 +66,6 @@ if ($args->{debug}) {
 	exit();
 }
 
-# `git add --patch` requires our output to match the number of lines from the
-# input. So, when patch mode is active, we print out empty lines to pad our
-# output to match any lines we've consumed.
-if ($args->{patch}) {
-	$patch_mode = 1;
-}
-
 # We only process ARGV if we don't have STDIN
 if (!$has_stdin) {
 	if ($args->{v} || $args->{version}) {
@@ -110,15 +103,17 @@ my @lines;
 local $DiffHighlight::line_cb = sub {
 	push(@lines,@_);
 
-	my $prev_line = $lines[-1];
+	my $last_line = $lines[-1];
 
-	# Buffer X lines before we try and output anything
-	# Also make sure we're sending enough data to d-s-f to do it's magic.
-	# Certain things require a look-ahead line or two to function so
-	# we make sure we don't break on those sections prematurely
-	if (@lines > 24 && ($prev_line !~ /^${ansi_color_regex}(---|index|old mode|similarity index|rename (from|to))/)) {
-		do_dsf_stuff(\@lines);
-		@lines = ();
+	# Wait until we have enough lines to process, then divide up into safe
+	# parseable chunks and have d-s-f do it's magic
+	if (@lines > 100) {
+		my @chunks = get_diff_chunks(\@lines);
+		@lines     = ();
+
+		foreach my $chunk (@chunks) {
+			do_dsf_stuff($chunk);
+		}
 	}
 };
 
@@ -136,13 +131,69 @@ while (my $line = <STDIN>) {
 
 # If we're mid hunk above process anything still pending
 DiffHighlight::flush();
-do_dsf_stuff(\@lines);
+
+# Process anything left over
+my @chunks = get_diff_chunks(\@lines);
+foreach my $chunk (@chunks) {
+	do_dsf_stuff($chunk);
+}
 
 #################################################################################
 #################################################################################
+
+sub count_git_header_lines {
+	my @lines = @_;
+	my $ret   = 0;
+
+	# Textual diff should be four lines of header
+	#diff --git a/diff-so-fancy b/diff-so-fancy
+	#index d952098..424d8a3 100755
+	#--- a/diff-so-fancy
+	#+++ b/diff-so-fancy
+
+	# Binary diff should be three lines of header
+	#diff --git a/file.txt b/file.txt
+	#new file mode 100644
+	#index 0000000..e69de29
+
+	#diff --git a/hello.txt b/hello.txt
+	#new file mode 100644
+	#index 0000000..0c767bc
+	#--- /dev/null
+	#+++ b/hello.txt
+
+	my $count = 1;
+	foreach my $line (@lines) {
+		if ($line =~ /^${ansi_color_regex}index/) {
+			last;
+		}
+
+		$count++;
+	}
+
+	if ($count == 2) {
+		$count = 4;
+	}
+
+	$ret = $count;
+
+	# No Git/Diff header should be more than four lines
+	if ($ret > 4) {
+		$ret = 0;
+	}
+
+	return $ret;
+}
 
 sub do_dsf_stuff {
 	my $input = shift();
+
+	my $cnt = count_git_header_lines(@$input);
+	if ($cnt == 3) {
+		$patch_mode = 0;
+	} elsif ($cnt == 4) {
+		$patch_mode = 1;
+	}
 
 	# Calculate the context lines the first time
 	if (!defined $CONTEXT_LINES) {
@@ -234,7 +285,7 @@ sub do_dsf_stuff {
 			}
 
 			# Find the second file on the next line: +++ b/README.md
-			my $next = shift(@$input);
+			my $next = shift(@$input) || "";
 			$next    =~ /^$ansi_color_regex\+\+\+ (\w\/)?(.+?)(\e|\t|$)/;
 			if ($1) {
 				print $1; # Print out whatever color we're using
@@ -1121,6 +1172,56 @@ sub calculate_context_lines {
 
 	# If for some reason we can't figure it out, assume 3
 	return 3;
+}
+
+# This function divides Git/Diff strings into smaller chunks that d-s-f can
+# process. The special sauce is not splitting on the Git headers, or any of
+# the lines that require context awareness of the next two lines
+sub get_diff_chunks {
+	my ($line_ref) = @_;
+
+	my @lines       = @$line_ref;
+	my @end_lines   = (); # Array of line numbers of the END of each chunk
+	my $total_lines = scalar(@lines);
+
+	# Loop through all the lines and build end line numbers for each "chunk"
+	for (my $i = 0; $i < $total_lines; $i++) {
+		my $line = $lines[$i];
+
+		if (($i > 0) && $line =~ /^${ansi_color_regex}diff/) {
+			push(@end_lines, $i - 1);
+		}
+	}
+
+	# The final end point is the last line
+	my $last_idx = $end_lines[-1] || 0;
+	if ($last_idx != ($total_lines - 1)) {
+		push(@end_lines, $total_lines - 1);
+	}
+
+	# Now that we know where all the end points are we divide the big array
+	# into smaller chunks
+	my @ret  = ();
+	my $prev = 0;
+	foreach my $idx (@end_lines) {
+		if ($idx > 0) {
+			# Array splice the lines into a smaller chuck and put them in @ret
+			my @tmp = @lines[$prev .. $idx];
+			push(@ret, \@tmp);
+			$prev = $idx + 1;
+		}
+	}
+
+	return @ret;
+}
+
+sub log_chunks {
+	my $chunks = shift();
+
+	debug_log("-------------- Chunk --------------");
+	foreach my $tmp (@$chunks) {
+		debug_log($tmp);
+	}
 }
 
 # Borrowed from: https://www.perturb.org/display/1097_Perl_detect_if_a_module_is_installed_before_using_it.html
