@@ -202,20 +202,29 @@ sub do_dsf_stuff {
 		#########################
 		# Look for the filename #
 		#########################
-		#                                            $4                          $5
-		} elsif ($line =~ /^${ansi_color_regex}diff (-r|--recursive|--git|--cc) (.*?)(\e| b\/|$)/) {
+		#                                            $4
+		} elsif ($line =~ /^${ansi_color_regex}diff (.+?)$/) {
+			my $extra = $4;
 
-			# Mercurial looks like: diff -r 82e55d328c8c hello.c
-			if ($4 eq "-r" || $4 eq "--recursive") {
+			# Mercurial looks like: diff --recursive -u core/app.py language/app.py
+			if ($extra =~ m/\b(-r|--recursive) (.+?) (.+)/) {
 				$is_mercurial = 1;
-				$meta_color = get_config_color("meta");
+				$meta_color   = get_config_color("meta");
+
+				$last_file_seen = $3 || "";
 			# Git looks like: diff --git a/diff-so-fancy b/diff-so-fancy
-			} else {
-				$last_file_seen = $5;
+			} elsif ($extra =~ m/--git/) {
+				# Note file may contains spaces
+				my ($a_file, $b_file) = $extra =~ m/(a\/.+) (b\/.+)/;
+				$a_file ||= "";
+				$b_file ||= "";
+
+				$last_file_seen = $a_file;
 			}
 
 			$last_file_seen =~ s|^\w/||; # Remove a/ (and handle diff.mnemonicPrefix).
-			$in_hunk = 0;
+			$in_hunk        = 0;
+
 			if ($patch_mode) {
 				# we are consuming one line, and the debt must be paid
 				print "\n";
