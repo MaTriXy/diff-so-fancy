@@ -67,7 +67,7 @@ teardown_file() {
 }
 
 @test "header format uses a native line-drawing character" {
-  header=$( printf "%s" "$output" | head -n3 )
+  header=$( load_fixture "ls-function" | $diff_so_fancy | head -n8 )
   run printf "%s" "$header"
   assert_line --index 0 --partial "─────"
   assert_line --index 1 --partial "modified: fish/functions/ls.fish"
@@ -78,7 +78,7 @@ teardown_file() {
 @test "Should not show unicode bytes in hex if missing LC_*/LANG _and_ piping the output" {
   unset LESSCHARSET LESSCHARDEF LC_ALL LC_CTYPE LANG
   # pipe to cat(1) so we don't open stdout
-  header=$( printf "%s" "$(load_fixture "ls-function" | $diff_so_fancy | cat)" | head -n3 )
+  header=$( printf "%s" "$(load_fixture "ls-function" | $diff_so_fancy | cat)" | head -n8 )
   run printf "%s" "$header"
   assert_line --index 0 --partial "-----"
   assert_line --index 1 --partial "modified: fish/functions/ls.fish"
