@@ -1,0 +1,4 @@
+diff --git a/first_file b/copied_file
+similarity index 100%
+copy from first_file
+copy to copied_file

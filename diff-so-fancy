@@ -208,6 +208,9 @@ sub do_dsf_stuff {
 	#print STDERR join("",@$input);
 	#print STDERR "END ---------------------------------------------------\n";
 
+	# We track if the last '^diff' line had recursive specified
+	my $recursive = 0;
+
 	while (my $line = shift(@$input)) {
 		######################################################
 		# Pre-process the line before we do any other markup #
@@ -257,20 +260,31 @@ sub do_dsf_stuff {
 		#########################
 		# Look for the filename #
 		#########################
-		#                                            $4                          $5
-		} elsif ($line =~ /^${ansi_color_regex}diff (-r|--recursive|--git|--cc) (.*?)(\e| b\/|$)/) {
+		#                                            $4
+		} elsif ($line =~ /^${ansi_color_regex}diff (.+?)$/) {
+			my $extra = $4;
 
-			# Mercurial looks like: diff -r 82e55d328c8c hello.c
-			if ($4 eq "-r" || $4 eq "--recursive") {
+			# Mercurial looks like: diff --recursive -u core/app.py language/app.py
+			if ($extra =~ m/(-r|--recursive) -u (.+?) (.*)/) {
 				$is_mercurial = 1;
-				$meta_color = get_config_color("meta");
+				$meta_color   = get_config_color("meta");
+
+				$last_file_seen = basename($3 || "");
+				$recursive      = 1;
 			# Git looks like: diff --git a/diff-so-fancy b/diff-so-fancy
-			} else {
-				$last_file_seen = $5;
+			} elsif ($extra =~ m/--git/) {
+				# Note file may contains spaces
+				my ($a_file, $b_file) = $extra =~ m/(a\/.+) (b\/.+)/;
+				$a_file ||= "";
+				$b_file ||= "";
+
+				$last_file_seen = $a_file;
+				$recursive      = 0;
 			}
 
 			$last_file_seen =~ s|^\w/||; # Remove a/ (and handle diff.mnemonicPrefix).
-			$in_hunk = 0;
+			$in_hunk        = 0;
+
 			if ($patch_mode) {
 				# we are consuming one line, and the debt must be paid
 				print "\n";
@@ -303,6 +317,21 @@ sub do_dsf_stuff {
 
 			if ($file_2 ne "/dev/null") {
 				$last_file_seen = $file_2;
+			}
+
+			# In recursive mode we massage the file names so they're similar
+			if ($recursive) {
+				# In recursive the files have the date appended:
+				# --- /var/tmp/a/index.txt        2026-03-13 21:35:20.997231861 -0700
+				# so we remove the date portion
+				$file_1 =~ s/\s+(\d{4}-\d{2}-\d{2}.+)//;
+				$file_2 =~ s/\s+(\d{4}-\d{2}-\d{2}.+)//;
+
+				my $common = common_prefix($file_1, $file_2);
+
+				# Remove the common prefix from each as well as the next dir
+				$file_1 =~ s/$common.+?\///;
+				$file_2 =~ s/$common.+?\///;
 			}
 
 			# Print out the top horizontal line of the header
@@ -424,16 +453,21 @@ sub do_dsf_stuff {
 			}
 
 			my $next    = shift(@$input);
-			my ($file1) = $next =~ /rename from (.+?)(\e|\t|$)/;
+			my ($action1, $file1) = $next =~ /(copy|rename) from (.+?)(\e|\t|$)/;
 
 			$next       = shift(@$input);
-			my ($file2) = $next =~ /rename to (.+?)(\e|\t|$)/;
+			my ($action2, $file2) = $next =~ /(copy|rename) to (.+?)(\e|\t|$)/;
 
 			if ($file1 && $file2) {
 				# We may not have extracted this yet, so we pull from the config if not
 				$meta_color = get_config_color("meta");
 
-				my $change = file_change_string($file1,$file2);
+				my $change = "???";
+				if ($action1 eq "copy") {
+					$change = "Copied $file1 to $file2";
+				} else {
+					$change = file_change_string($file1,$file2);
+				}
 
 				print horizontal_rule($meta_color);
 				print $meta_color . $change . "\n";
@@ -1171,6 +1205,16 @@ sub debug_log {
 	return 1;
 }
 
+sub common_prefix {
+	my ($a, $b) = @_;
+	my $len = length($a) < length($b) ? length($a) : length($b);
+
+	my $i = 0;
+	$i++ while $i < $len && substr($a,$i,1) eq substr($b,$i,1);
+
+	return substr($a, 0, $i);
+}
+
 # Count the number of context lines in the diff
 sub calculate_context_lines {
 	my @lines     = @_;
@@ -1245,25 +1289,25 @@ sub log_chunks {
 }
 
 # Borrowed from: https://www.perturb.org/display/1097_Perl_detect_if_a_module_is_installed_before_using_it.html
-sub AUTOLOAD {
-	our $AUTOLOAD; # keep 'use strict' happy
+# Creates methods k() and kd() to print, and print & die respectively
+BEGIN {
+	if (!defined(&trim)) {
+		*trim = sub {
+			my ($s) = (@_, $_); # Passed in var, or default to $_
+			if (length($s) == 0) { return ""; }
+			$s =~ s/^\s*//;
+			$s =~ s/\s*$//;
 
-	if ($AUTOLOAD eq 'main::k' || $AUTOLOAD eq 'main::kd') {
-		if (eval { require Data::Dump::Color }) {
-			*k = sub { Data::Dump::Color::dd(@_) };
-		} else {
-			require Data::Dumper;
-			*k = sub { print Data::Dumper::Dumper(@_) };
+			return $s;
 		}
+	}
 
-		sub kd {
-			k(@_);
-
-			printf("Died at %2\$s line #%3\$s\n",caller());
-			exit(15);
-		}
-
-		eval($AUTOLOAD . '(@_)');
+	if (eval { require Dump::Krumo }) {
+		Dump::Krumo->import(qw/:short/);
+	} else {
+		require Data::Dumper;
+		*k  = sub { print Data::Dumper::Dumper(\@_) };
+		*kd = sub { print Data::Dumper::Dumper(\@_); die; };
 	}
 }
 

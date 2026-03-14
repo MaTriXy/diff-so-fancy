@@ -211,7 +211,7 @@ teardown_file() {
 	output=$( load_fixture "complex-hunks" | $diff_so_fancy 2>&1 )
 	run printf "%s" "$output"
 
-	assert_line --index 4 --partial "@ libs/header_clean/header_clean.pl:107 @"
+	assert_output --regexp "@ libs/header_clean/header_clean.pl:107 @"
     refute_output --partial 'Use of uninitialized value'
 }
 

@@ -1,0 +1,13 @@
+Only in /var/tmp/b: donk
+diff --recursive -u /var/tmp/a/foo/bar /var/tmp/b/foo/bar
+--- /var/tmp/a/foo/bar  2026-03-13 21:35:28.492228513 -0700
++++ /var/tmp/b/foo/bar  2026-03-13 21:35:47.101220189 -0700
+@@ -1 +1 @@
+-BAR
++FOO
+diff --recursive -u /var/tmp/a/index.txt /var/tmp/b/index.txt
+--- /var/tmp/a/index.txt        2026-03-13 21:35:20.997231861 -0700
++++ /var/tmp/b/index.txt        2026-03-13 21:35:41.030222906 -0700
+@@ -1 +1,2 @@
+ INDEX
++INDEX2
