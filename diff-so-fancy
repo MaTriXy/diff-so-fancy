@@ -1077,12 +1077,23 @@ sub init_diff_highlight_colors {
 	$DiffHighlight::OLD_HIGHLIGHT[1] = git_ansi_color(git_config('color.diff-highlight.oldhighlight')) || $DiffHighlight::OLD_HIGHLIGHT[1];
 }
 
+# Human readable datetime string with milliseconds
 sub date_str {
-	my $epoch = time();
-	my @date  = localtime($epoch);
+	use Time::HiRes qw(gettimeofday);
 
-	my $ret = sprintf("%04d-%02d-%02d", $date[5] + 1900, $date[4] + 1, $date[3]);
-	$ret .= sprintf(" %02d:%02d:%02d", $date[2], $date[1], $date[0]);
+	my ($sec, $usec) = gettimeofday();
+	my @t            = localtime($sec);
+
+	my $ret = sprintf(
+        "%04d-%02d-%02d %02d:%02d:%02d.%03d",
+        $t[5] + 1900,
+        $t[4] + 1,
+        $t[3],
+        $t[2],
+        $t[1],
+        $t[0],
+        int($usec / 1000),
+    );
 
 	return $ret;
 }
