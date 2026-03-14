@@ -87,3 +87,10 @@ teardown_file() {
   run printf "%s" "$output"
   assert_output --regexp 'Copied first_file to copied_file'
 }
+
+@test "diff --recursive support" {
+  output=$( load_fixture "diff_recursive" | $diff_so_fancy )
+  run printf "%s" "$output"
+  assert_output --regexp 'modified: foo/bar'
+  assert_output --regexp 'modified: index.txt'
+}
