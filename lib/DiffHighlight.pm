@@ -252,6 +252,7 @@ sub highlight_line {
 	if (defined $theme->[0]) {
 		s/$COLOR//g for ($start, $mid, $end);
 		chomp $end;
+		chomp $start;
 		return join('',
 			$theme->[0], $start, $RESET,
 			$theme->[1], $mid, $RESET,
