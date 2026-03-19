@@ -1,0 +1,39 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Perl and App::FatPacker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y perl cpanminus
+          cpanm --local-lib=~/perl5 App::FatPacker
+          echo "PATH=$HOME/perl5/bin:$PATH" >> $GITHUB_ENV
+          echo "PERL5LIB=$HOME/perl5/lib/perl5:$PERL5LIB" >> $GITHUB_ENV
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install and Build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Publish to npm
+        run: |
+          npm install -g npm@latest
+          npm publish --provenance --access public --registry https://registry.npmjs.org/
