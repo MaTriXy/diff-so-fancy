@@ -68,7 +68,7 @@ between files with `n`/`N` keys:
 
 ## Zsh plugin suppport for diff-so-fancy
 
-This project includes a `.plugin.zsh` file providing ZSH framework support, so you can use any framework that supports the ZSH plugin standard to install `diff-so-fancy` and add it to your `$PATH`. Installation with Zinit, Zplug, and Zgen:
+This project includes a `diff-so-fancy.plugin.zsh` file providing ZSH framework support, so you can use any framework that supports the ZSH plugin standard to install `diff-so-fancy` and add it to your `$PATH`. Installation with Zinit, Zplug, and Zgen:
 
 ### Install with zinit
 
