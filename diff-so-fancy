@@ -1272,6 +1272,32 @@ sub count_git_header_lines {
 	return $ret;
 }
 
+# Take a chunk of diff header and find the starting line of the first change
+sub extract_start_line {
+	my ($line, $input, $context_lines) = @_;
+
+	# Take the current line, and a couple lines after to build a header context that we can search for hunk information later
+	my $header = $line;
+	for my $num (0 .. 3) {
+		my $line = $input->[$num] || "";
+
+		$header .= $line;
+	}
+
+	#print "-----\n$header\n-----\n";
+
+	my $start_line = 0;
+	if ($header =~ m/(\@+ (.+?) \@+)/) {
+		my $hunk_header = $1 || "";
+		my ($orig_offset, $orig_count, $new_offset, $new_count) = parse_hunk_header($hunk_header);
+
+		# Figure out the start line
+		$start_line = start_line_calc($new_offset, $new_count, $context_lines);
+	}
+
+	return $start_line;
+}
+
 # Borrowed from: https://www.perturb.org/display/1097_Perl_detect_if_a_module_is_installed_before_using_it.html
 # Creates methods k() and kd() to print, and print & die respectively
 BEGIN {
