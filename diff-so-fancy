@@ -1320,7 +1320,8 @@ BEGIN {
 		}
 	}
 
-	if ($ENV{USER} eq "bakers") {
+	# If you're me you load a debug library
+	if ($ENV{USER} && ($ENV{USER} eq "bakers")) {
 		require Dump::Krumo;
 		Dump::Krumo->import(qw(k kd));
 	}
