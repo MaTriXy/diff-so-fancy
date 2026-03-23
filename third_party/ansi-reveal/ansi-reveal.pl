@@ -81,32 +81,60 @@ sub dump_ansi {
 			$ret .= "[REVERSE]";
 		} elsif ($p eq "27") {
 			$ret .= "[NOTREV]";
-		} elsif ($p eq "38") {
-			my $next  = $parts[$count + 1];
-			my $color = $parts[$count + 2];
+		# Foreground color
+		} elsif ($p eq "38") { # Foreground either 8 or 24bit
+			my $next  = $parts[$count + 1]; # 5 = 8bit, 2 = 24bit
 
-			$count += 2;
+			if ($next == 5) {
+				my $color  = $parts[$count + 2];
+				$count    += 2;
 
-			$ret .= sprintf("[COLOR%03d]",$color);
-		} elsif ($p eq "48") {
-			my $next  = $parts[++$count];
-			my $color = $parts[++$count];
+				$ret .= sprintf("[COLOR%03d]",$color);
+			} elsif ($next == 2) {
+				my $red    = $parts[$count + 2];
+				my $green  = $parts[$count + 3];
+				my $blue   = $parts[$count + 4];
+				$count    += 4;
 
-			$count += 2;
+				$ret .= sprintf("[COLOR(%d,%d,%d)]", $red, $green, $blue);
+			} else {
+				$ret .= sprintf("[COLOR???]");
+			}
+		# Background color
+		} elsif ($p eq "48") { # Background either 8 or 24bit
+			my $next = $parts[$count + 1]; # 5 = 8bit, 2 = 24bit
 
-			$ret .= sprintf("[BACKG%03d]",$color);
+			if ($next == 5) {
+				my $color  = $parts[$count + 2];
+				$count    += 2;
+
+				$ret .= sprintf("[BACKG%03d]",$color);
+			} elsif ($next == 2) {
+				my $red    = $parts[$count + 2];
+				my $green  = $parts[$count + 3];
+				my $blue   = $parts[$count + 4];
+				$count    += 4;
+
+				$ret .= sprintf("[BACKG(%d,%d,%d)]", $red, $green, $blue);
+			} else {
+				$ret .= sprintf("[BACKG???]");
+			}
+		# Basic foreground colors
 		} elsif ($p >= 30 and $p <= 37) {
 			my $color = $p - 30;
 			$color = $basic_mapping[$color];
 			$ret .= "[$color]";
+		# Basic background colors
 		} elsif ($p >= 40 and $p <= 47) {
 			my $color = $p - 40;
 			$color = $basic_mapping[$color];
 			$ret .= "[BG-$color]";
+		# Basic bright foreground colors
 		} elsif ($p >= 90 and $p <= 97) {
 			my $color = $p - 90;
 			$color = $basic_mapping[$color];
 			$ret .= "[BRT-$color]";
+		# Basic bright background colors
 		} elsif ($p >= 100 and $p <= 107) {
 			my $color = $p - 100;
 			$color = $basic_mapping[$color];
@@ -130,13 +158,26 @@ sub bleach_text {
 	return $str;
 }
 
+# Creates methods k() and kd() to print, and print & die respectively
 BEGIN {
-	if (eval { require Data::Dump::Color }) {
-		*k = sub { Data::Dump::Color::dd($_[0]) };
-	} else {
-		require Data::Dumper;
-		*k = sub { print Data::Dumper::Dumper($_[0]) };
-	}
+    if (!defined(&trim)) {
+        *trim = sub {
+            my ($s) = (@_, $_); # Passed in var, or default to $_
+            if (length($s) == 0) { return ""; }
+            $s =~ s/^\s*//;
+            $s =~ s/\s*$//;
+
+            return $s;
+        }
+    }
+
+    if (eval { require Dump::Krumo }) {
+        Dump::Krumo->import(qw/k kd/);
+    } else {
+        require Data::Dumper;
+        *k  = sub { print Data::Dumper::Dumper(\@_) };
+        *kd = sub { print Data::Dumper::Dumper(\@_); die; };
+    }
 }
 
 # vim: tabstop=4 shiftwidth=4 autoindent softtabstop=4
