@@ -93,11 +93,10 @@ teardown_file() {
 }
 
 @test "Remove a \n at the end of a file (#474)" {
-  output=$( load_fixture "remove_slashn_eof" | $diff_so_fancy )
+  output=$( load_fixture "remove_slashn_eof" | $diff_so_fancy | $ansi_reveal)
   run printf "%s" "$output"
-  #assert_output --regexp 'one'
-  assert_line --index 6 --regexp "three"
-  assert_line --index 7 --regexp "three"
+  assert_line --index 6 --partial "[BOLD][RED]three[RESET]"
+  assert_line --index 7 --partial "[BOLD][GREEN]three[RESET]"
 }
 
 @test "Single line input passes through d-s-f (#511)" {
