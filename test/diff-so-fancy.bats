@@ -41,21 +41,20 @@ teardown_file() {
 }
 
 @test "+/- line symbols are stripped (truecolor)" {
-  output=$( load_fixture "truecolor" | $diff_so_fancy )
-  refute_output --partial "
-[1;38;2;220;50;47;48;2;0;43;54m-"
-  refute_output --partial "
-[1;38;2;133;153;0;48;2;0;43;54m+"
+	output=$( load_fixture "truecolor" | $diff_so_fancy | $ansi_reveal )
+	run printf "%s" "$output"
+
+	# Make sure there is no `+` or `-` at the start of the line
+	assert_line --index 7 --regexp '^\[BOLD\]\[COLOR\(220,50,47\)\].*git'
+	assert_line --index 9 --regexp '^\[BOLD\]\[COLOR\(133,153,0\)\].*git'
 }
 
 @test "empty lines added/removed are marked" {
+	output=$( load_fixture "ls-function" | $diff_so_fancy | $ansi_reveal )
 	run printf "%s" "$output"
 
-	assert_line --index 7 --partial  "[7m[1;32m [m"
-	assert_line --index 24 --partial "[7m[1;31m [m"
-
-	#assert_output --partial "[7m[1;32m [m"
-	#assert_output --partial "[7m[1;31m [m"
+	assert_line --index 7 --regexp  "^\[REVERSE\]\[BOLD\]\[GREEN\] \[RESET\]"
+	assert_line --index 24 --regexp "^\[REVERSE\]\[BOLD\]\[RED\] \[RESET\]"
 }
 
 @test "diff --git line is removed entirely" {
